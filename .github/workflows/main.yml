@@ -1,0 +1,114 @@
+# This is a GitHub Actions workflow file (main.yaml) for setting up CI/CD
+# for a project like CUDGEL, with a focus on building and deploying
+# Docker images.  It assumes you have a server component that gets containerized.
+#  It does NOT build the Godot game client.
+
+name: CI/CD Pipeline
+
+# Controls when the workflow will run
+on:
+  push:
+    branches:
+      - main #  Trigger on pushes to the main branch
+      - develop #  Also trigger on pushes to the develop branch
+    paths:
+      - server/** #  Only if files in the 'server' directory change
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - server/**
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This is a job to build the Docker image
+  build-image:
+    name: Build Docker Image
+    runs-on: ubuntu-latest #  Use a Ubuntu runner
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your workflow can access your code.  Uses the version 4.
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Needed for calculating changed files
+
+      # Get the changed files, and set it as an output
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/git-changed-files@v4
+        with:
+          files: server/**
+      - name: Set image version
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "IMAGE_VERSION=pr-${{ github.run_number }}" >> $GITHUB_ENV
+          else
+            echo "IMAGE_VERSION=${{ github.sha }}" >> $GITHUB_ENV
+          fi
+      # Logs into the Container Registry.  Assumes you're using GitHub Packages.
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }} #  Use the built-in token
+
+      # Build the Docker image.
+      - name: Build and push Docker image
+        if: ${{ steps.changed-files.outputs.any_changed == 'true' }}
+        run: |
+          docker build \
+            --tag ghcr.io/${{ github.repository }}/cudgel-server:${{ env.IMAGE_VERSION }} \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}/tree/${{ github.sha }}" \
+            --file server/Dockerfile . #  Path to your Dockerfile
+          docker push ghcr.io/${{ github.repository }}/cudgel-server:${{ env.IMAGE_VERSION }}
+
+      - name: Image Digest
+        id: image-digest
+        if: ${{ steps.changed-files.outputs.any_changed == 'true' }}
+        run: |
+          echo "::set-output name=digest$(
+            docker inspect \
+            --format='{{index .RepoDigests 0}}' \
+            ghcr.io/${{ github.repository }}/cudgel-server:${{ env.IMAGE_VERSION }}
+          )"
+        #  Store the digest for use in the deployment job.
+        echo "IMAGE_DIGEST=${{ steps.image-digest.outputs.digest }}" >> $GITHUB_ENV
+
+  # This is a job to deploy the Docker image to a Kubernetes cluster
+  deploy-to-kind:
+    name: Deploy to Kind
+    needs: build-image #  This job depends on the 'build-image' job
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Set up Kubernetes tools
+      - name: Set up kubectl
+        uses: kubernetes-actions/setup-kubectl@v3
+        with:
+          cluster-name: kind #  Or minikube
+
+      # Deploy to Kind
+      - name: Deploy to Kind
+        if: ${{ needs.build-image.result == 'success' }} # Only deploy if image was built successfully
+        run: |
+          # Use the image digest if available, otherwise use the tag.
+          if [ -n "${{ env.IMAGE_DIGEST }}" ]; then
+            IMAGE_NAME="ghcr.io/${{ github.repository }}/cudgel-server@${{ env.IMAGE_DIGEST }}"
+          else
+            IMAGE_NAME="ghcr.io/${{ github.repository }}/cudgel-server:${{ env.IMAGE_VERSION }}"
+          fi
+          # Apply the kustomization, setting the image.
+          kubectl kustomize ./k8s-dev | \
+            sed "s@cudgel-server:dev@$IMAGE_NAME@" | \
+            kubectl apply -f -
+          kubectl rollout status deployment/cudgel-server -n cudgel-dev --timeout=60s
+
+      - name: Get Pods
+        run: kubectl get pods -n cudgel-dev

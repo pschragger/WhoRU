@@ -1,0 +1,96 @@
+# This kustomization.yaml is an example for deploying supporting services
+# for a game like CUDGEL on Kubernetes.  It's NOT for deploying the
+# Godot game client itself, which is typically distributed as an executable.
+# This example assumes you have some server-side components, like
+# matchmakers, databases, or game servers.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# A namespace is a good way to organize your game-related resources.
+namespace: cudgel-game
+
+# Common labels for all resources in this kustomization.
+commonLabels:
+  app: cudgel
+  game: cudgel
+
+# Base resources (these could be in separate files/directories).
+resources:
+  - deployment.yaml  # Example deployment for a game server or matchmaker
+  - service.yaml     # Example service to expose the deployment
+  # - database.yaml  #  Example for a database (e.g., MongoDB, Redis) - commented out for now
+  # - ingress.yaml   #  Example for an ingress, if you need external access
+
+# Patches to modify the base resources.  For example, you might want
+# to change the number of replicas for different environments.
+patchesStrategicMerge:
+  - deployment_patch.yaml
+
+# ConfigMapGenerator to create configuration files.
+configMapGenerator:
+  - name: cudgel-config
+    files:
+      - config.ini  #  Example configuration file
+
+# secretGenerator to create secrets.  Good for database passwords, API keys, etc.
+secretGenerator:
+  - name: cudgel-secrets
+    literals:
+      - database-password=your-db-password  #  Example secret
+
+# ===============================
+#   Explanation of the files
+# ===============================
+
+# deployment.yaml (Example)
+# ---------------------------
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: cudgel-server
+# spec:
+#   replicas: 2
+#   selector:
+#     matchLabels:
+#       app: cudgel-server
+#   template:
+#     metadata:
+#       labels:
+#         app: cudgel-server
+#     spec:
+#       containers:
+#         - name: cudgel-server
+#           image: your-registry/cudgel-server:latest # Replace with your server image
+#           ports:
+#             - containerPort: 7777 #  Example port
+
+# service.yaml (Example)
+# ----------------------
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: cudgel-server
+# spec:
+#   selector:
+#     app: cudgel-server
+#   ports:
+#     - port: 7777
+#       targetPort: 7777
+#   type: ClusterIP #  Or NodePort, or LoadBalancer, depending on your needs
+
+# deployment_patch.yaml (Example)
+# --------------------------------
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: cudgel-server
+# spec:
+#   replicas: 4 #  Scale up the number of replicas
+
+# config.ini (Example)
+# --------------------
+# [server]
+# port = 7777
+# timeout = 30s
+# map = "level1"

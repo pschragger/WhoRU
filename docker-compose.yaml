@@ -1,0 +1,60 @@
+version: '3.8'
+services:
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile # Make sure this matches the name of your Dockerfile
+    ports:
+      - "8080:8080" # Expose the application port
+    depends_on:
+      - auth-db
+    restart: always
+    environment:
+      - DATABASE_URL=postgres://postgres:password@auth-db:5432/auth_db #  Use the service name
+      - PORT=8080 #redundant since it is in the Dockerfile, but good to have here too
+      # Add other environment variables as needed (e.g., for auth providers)
+      - GOOGLE_CLIENT_ID=your-google-client-id
+      - GOOGLE_CLIENT_SECRET=your-google-client-secret
+      - FACEBOOK_CLIENT_ID=your-facebook-client-id
+      - FACEBOOK_CLIENT_SECRET=your-facebook-client-secret
+      - APPLE_CLIENT_ID=your-apple-client-id
+      - APPLE_CLIENT_SECRET=your-apple-client-secret
+      - SESSION_SECRET=your-session-secret #  Important for session security
+    networks:
+      - auth_net
+
+  auth-db:
+    image: postgres:14 # Use the same version as in your StatefulSet
+    ports:
+      - "5432:5432" # Expose the database port (only needed for local development)
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password # Use a strong password in production, and ideally, use a secret management solution.
+      - POSTGRES_DB=auth_db
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data # Persist database data
+    networks:
+      - auth_net
+    restart: always
+
+  nginx: # Add Nginx for reverse proxy
+    image: nginx:1.25-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./internal/platform/kubernetes/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./internal/platform/kubernetes/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      #  - certs:/etc/nginx/certs # Mount certificates for HTTPS (if you have them)
+    depends_on:
+      - auth-service
+    restart: always
+    networks:
+      - auth_net
+
+volumes:
+  auth_db_data: # Define the volume
+
+networks:
+  auth_net:
+    driver: bridge

@@ -1,0 +1,89 @@
+# kustomization.yaml (for local Docker with Kind/Minikube)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cudgel-dev #  Development namespace
+
+commonLabels:
+  app: cudgel-dev
+  game: cudgel
+
+resources:
+  - deployment.yaml
+  - service.yaml
+#  - ingress.yaml # No Ingress for local development usually
+
+patchesStrategicMerge:
+  - deployment_patch.yaml
+
+configMapGenerator:
+  - name: cudgel-config
+    files:
+      - config.ini
+
+secretGenerator:
+  - name: cudgel-secrets
+    literals:
+      - database-password=dev-password #  Development password
+
+# patches
+patches:
+  - target:
+      kind: Deployment
+      name: cudgel-server
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: cudgel-server:dev # Local Docker image tag
+      - op: replace
+        path: /spec/template/spec/containers/0/ports/0/containerPort
+        value: 8080 #  Example port for local dev
+  - target:
+      kind: Service
+      name: cudgel-server
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort #  Expose directly on the node
+      - op: replace
+        path: /spec/ports/0/port
+        value: 8080 #  Port for the service
+      - op: replace
+        path: /spec/ports/0/targetPort
+        value: 8080 #  Port the container listens on
+      - op: replace
+        path: /spec/ports/0/nodePort  # Add this
+        value: 30001 #  Port on the node (choose an available port)
+
+# deployment.yaml (for local Docker)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cudgel-server
+  namespace: cudgel-dev
+spec:
+  replicas: 1 #  Single replica for local dev
+  selector:
+    matchLabels:
+      app: cudgel-server
+  template:
+    metadata:
+      labels:
+        app: cudgel-server
+    spec:
+      containers:
+        - name: cudgel-server
+          image: cudgel-server:dev #  Ensure this tag exists in your local Docker registry
+          ports:
+            - containerPort: 8080 #  Port your server listens to within the container
+          #  No need for liveness/readiness probes in very basic local dev
+          imagePullPolicy: Never #  Important:  Don't try to pull from a registry
+          #  Mount a volume for the game data (optional, for development)
+          #  May need to create a volume
+          #  volumeMounts:
+          #    - name: game-data
+          #      mountPath: /app/data
+          # volumes:
+          #  - name: game-data
+          #    hostPath:
+          #      path: /path/on/your/host/data #  Map to a directory on your machine

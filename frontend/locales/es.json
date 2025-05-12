@@ -1,0 +1,39 @@
+{
+    "appTitle": "Servicio de Autenticación",
+    "welcome": "Bienvenido",
+    "setupTitle": "Configura tu cuenta",
+    "loginTitle": "Inicia sesión en tu cuenta",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "confirmPassword": "Confirmar contraseña",
+    "firstName": "Nombre",
+    "lastName": "Apellido",
+    "companyName": "Nombre de la empresa",
+    "submit": "Enviar",
+    "login": "Iniciar sesión",
+    "loginWith": "Iniciar sesión con {provider}",
+    "accountSetupSuccess": "¡Cuenta creada con éxito! Por favor, revisa tu correo electrónico para la verificación.",
+    "invalidCredentials": "Correo electrónico o contraseña no válidos.",
+    "emailTaken": "La dirección de correo electrónico ya está en uso.",
+    "passwordMismatch": "Las contraseñas no coinciden.",
+    "generalError": "Se produjo un error. Por favor, inténtelo de nuevo.",
+    "missingFields": "Por favor, rellene todos los campos requeridos.",
+    "loading": "Cargando...",
+    "google": "Google",
+    "facebook": "Facebook",
+    "apple": "Apple",
+    "newCustomerTitle": "Configuración de nuevo cliente",
+    "returningCustomerTitle": "Inicio de sesión de cliente recurrente",
+    "emailVerificationSent": "¡Verificación de correo electrónico enviada! Por favor, revise su bandeja de entrada.",
+    "language": "Idioma",
+    "english": "Inglés",
+    "spanish": "Español",
+    "hebrew": "Hebreo",
+    "japanese": "Japonés"
+}
+
+
+}
+
+
+
